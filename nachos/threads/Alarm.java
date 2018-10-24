@@ -1,12 +1,23 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import java.util.*;
 
 /**
  * Uses the hardware timer to provide preemption, and to allow threads to sleep
  * until a certain time.
  */
 public class Alarm {
+	
+	class Pair {
+		KThread thread;
+		long time;
+		Pair (KThread thread, long time){
+			this.thread = thread;
+			this.time = time;
+		}
+	}
+	
 	/**
 	 * Allocate a new Alarm. Set the machine's timer interrupt handler to this
 	 * alarm's callback.
@@ -29,7 +40,11 @@ public class Alarm {
 	 * should be run.
 	 */
 	public void timerInterrupt() {
-		KThread.currentThread().yield();
+		long curTime = Machine.timer().getTime();
+		while(!waitingThread.isEmpty() && waitingThread.peek().time <= curTime) {
+			Pair temp = waitingThread.poll();
+			temp.thread.ready();
+		}
 	}
 
 	/**
@@ -47,7 +62,35 @@ public class Alarm {
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
 		long wakeTime = Machine.timer().getTime() + x;
-		while (wakeTime > Machine.timer().getTime())
-			KThread.yield();
+		waitingThread.add(new Pair(KThread.currentThread(), wakeTime));
+		Machine.interrupt().disable();
+		KThread.currentThread().sleep();
+		Machine.interrupt().enable();
 	}
+	
+	public static void selfTest() {
+		alarmTest1();
+
+		// Invoke your other test methods here ...
+	}
+	
+	public static void alarmTest1() {
+		int durations[] = {1000, 10*1000, 100*1000};
+		long t0, t1;
+
+		for (int d : durations) {
+		    t0 = Machine.timer().getTime();
+		    ThreadedKernel.alarm.waitUntil (d);
+		    t1 = Machine.timer().getTime();
+		    System.out.println ("alarmTest1: waited for " + (t1 - t0) + " ticks");
+		}
+	}
+	
+	PriorityQueue<Pair> waitingThread = new PriorityQueue<>(new Comparator<Pair>() {
+		public int compare(Pair a, Pair b) {
+			if(a.time < b.time) return -1;
+			else if(a.time > b.time) return 1;
+			else return 0;
+		}
+	});
 }

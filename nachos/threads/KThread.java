@@ -203,6 +203,11 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
+		if(currentThread.parent != null) {
+			currentThread.parent.ready();
+			currentThread.parent = null;
+		}
+
 		sleep();
 	}
 
@@ -284,7 +289,14 @@ public class KThread {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
-
+		Lib.assertTrue(this.parent == null);
+		
+		if(this.status == statusFinished) return;
+		
+		this.parent = KThread.currentThread;
+		Machine.interrupt().disable();
+		KThread.currentThread.sleep();
+		Machine.interrupt().enable();
 	}
 
 	/**
@@ -415,6 +427,9 @@ public class KThread {
 
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
+
+		// Condition.cvTest5();
+		GameMatch.selfTest();
 	}
 
 	private static final char dbgThread = 't';
@@ -465,4 +480,6 @@ public class KThread {
 	private static KThread toBeDestroyed = null;
 
 	private static KThread idleThread = null;
+
+	private KThread parent = null; 
 }
