@@ -428,7 +428,7 @@ public class KThread {
 		new KThread(new PingTest(1)).setName("forked thread").fork();
 		new PingTest(0).run();
 
-		// Condition.cvTest5();
+//		Condition2.cvTest5();
 		GameMatch.selfTest();
 	}
 
