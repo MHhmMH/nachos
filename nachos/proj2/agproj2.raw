@@ -1,4 +1,4 @@
-------[ Mon Nov 19 22:30:38 2018 ]------
+------[ Tue Nov 20 00:00:30 2018 ]------
 --[ tests write1.c ]--
 stty: standard input: Inappropriate ioctl for device
 stty: standard input: Inappropriate ioctl for device
@@ -183,7 +183,14 @@ creating bad.out...
 writing count = 0 bytes...
 ...passed
 writing with an invalid buffer (should not crash, only return an error)...
-./nachos_executable: line 14: 11717 Killed                  java nachos.machine.Machine $*
+...passed (r = -1)
+writing with an invalid count (should not crash, only return an error)...
+...passed (r = -1)
+writing with a buffer that extends beyond the end of the
+address space.  write should return an error.
+...passed (r = -1)
+
+success
 stty: standard input: Inappropriate ioctl for device
 --[ tests exit1.c ]--
 stty: standard input: Inappropriate ioctl for device
