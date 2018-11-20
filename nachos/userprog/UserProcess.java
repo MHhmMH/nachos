@@ -470,7 +470,7 @@ public class UserProcess {
 		while(count > 0) {
 			byte[] buffer = new byte[1024];
 			int numBytesRead = fileEntity.read(buffer, 0, Math.min(count, buffer.length));
-			if(numBytesRead == -1) {
+			if(numBytesRead == -1 || numBytesRead != Math.min(count, buffer.length)) {
 				return -1;
 			}
 			if(numBytesRead == 0) {
@@ -504,7 +504,7 @@ public class UserProcess {
 		while(count > 0) {
 			byte[] buffer = new byte[1024];
 			int numBytesRead = readVirtualMemory(vaddr, buffer, 0, Math.min(count, buffer.length));
-			if(numBytesRead == -1) {
+			if(numBytesRead == -1 || numBytesRead != Math.min(count, buffer.length)) {
 				return -1;
 			}
 			
