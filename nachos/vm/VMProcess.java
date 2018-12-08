@@ -38,6 +38,47 @@ public class VMProcess extends UserProcess {
 	 * 
 	 * @return <tt>true</tt> if successful.
 	 */
+	@Override
+	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) 
+	{
+		Lib.assertTrue(offset >= 0 && length >= 0
+				&& offset + length <= data.length);
+
+		byte[] memory = Machine.processor().getMemory();
+		int res = 0;
+		int vpn = vaddr / pageSize;
+		int off = vaddr % pageSize;
+		VMKernel.find_replace_lock.acquire();
+		pageTable[vpn].used = false;
+		VMKernel.find_replace_lock.release();
+		
+		while(length > 0) {
+			
+			
+			//vpn not exist in pagetable
+			if(vpn < 0 || vpn > pageTable.length) {
+				return 0;
+			}
+			if(vpn == pageTable.length) {
+				break;
+			}
+			
+			int ppn = pageTable[vpn].ppn;
+			int paddr = ppn* pageSize+off;
+			
+			int amount = Math.min(length, pageSize - off);
+			System.arraycopy(memory, paddr, data, offset, amount);
+			
+			res = res + amount;
+			length = length - amount;
+			vaddr = vaddr + amount;
+			offset = offset + amount;
+		}
+		
+		return res;
+
+	}
+
 	protected boolean loadSections() {
 		return super.loadSections();
 	}

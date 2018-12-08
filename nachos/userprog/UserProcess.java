@@ -146,47 +146,7 @@ public class UserProcess {
 	 * array.
 	 * @return the number of bytes successfully transferred.
 	 */
-	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
-		Lib.assertTrue(offset >= 0 && length >= 0
-				&& offset + length <= data.length);
-
-		byte[] memory = Machine.processor().getMemory();
-		int res = 0;
-		
-		
-		while(length > 0) {
-			int vpn = vaddr/pageSize;
-			int off = vaddr%pageSize;
-			
-			//vpn not exist in pagetable
-			if(vpn<0 || vpn>pageTable.length) {
-				return 0;
-			}
-			if(vpn == pageTable.length) {
-				break;
-			}
-			
-			int ppn = pageTable[vpn].ppn;
-			int paddr = ppn*pageSize+off;
-			
-			int amount = Math.min(length, pageSize - off);
-			System.arraycopy(memory, paddr, data, offset, amount);
-			
-			res = res+amount;
-			length = length-amount;
-			vaddr = vaddr+amount;
-			offset = offset+amount;
-		}
-		
-		return res;
-//		if (vaddr < 0 || vaddr >= memory.length)
-//			return 0;
-//
-//		int amount = Math.min(length, memory.length - vaddr);
-//		System.arraycopy(memory, vaddr, data, offset, amount);
-
-	}
-
+	c
 	/**
 	 * Transfer all data from the specified array to this process's virtual
 	 * memory. Same as <tt>writeVirtualMemory(vaddr, data, 0, data.length)</tt>.
