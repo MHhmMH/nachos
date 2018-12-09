@@ -146,7 +146,7 @@ public class UserProcess {
 	 * array.
 	 * @return the number of bytes successfully transferred.
 	 */
-	c
+	
 	/**
 	 * Transfer all data from the specified array to this process's virtual
 	 * memory. Same as <tt>writeVirtualMemory(vaddr, data, 0, data.length)</tt>.
@@ -159,6 +159,56 @@ public class UserProcess {
 		return writeVirtualMemory(vaddr, data, 0, data.length);
 	}
 
+	/**
+	 * Transfer data from this process's virtual memory to the specified array.
+	 * This method handles address translation details. This method must
+	 * <i>not</i> destroy the current process if an error occurs, but instead
+	 * should return the number of bytes successfully copied (or zero if no data
+	 * could be copied).
+	 * 
+	 * @param vaddr the first byte of virtual memory to read.
+	 * @param data the array where the data will be stored.
+	 * @param offset the first byte to write in the array.
+	 * @param length the number of bytes to transfer from virtual memory to the
+	 * array.
+	 * @return the number of bytes successfully transferred.
+	 */
+	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) 
+	{
+		Lib.assertTrue(offset >= 0 && length >= 0
+				&& offset + length <= data.length);
+
+		byte[] memory = Machine.processor().getMemory();
+		int res = 0;
+		
+		while(length > 0) {
+			
+			int vpn = vaddr / pageSize;
+			int off = vaddr % pageSize;
+			//vpn not exist in pagetable
+			if(vpn < 0 || vpn > pageTable.length) {
+				return 0;
+			}
+			if(vpn == pageTable.length) {
+				break;
+			}
+			
+			int ppn = pageTable[vpn].ppn;
+			int paddr = ppn* pageSize+off;
+			
+			int amount = Math.min(length, pageSize - off);
+			System.arraycopy(memory, paddr, data, offset, amount);
+			
+			res = res + amount;
+			length = length - amount;
+			vaddr = vaddr + amount;
+			offset = offset + amount;
+		}
+		
+		return res;
+
+	}
+	
 	/**
 	 * Transfer data from the specified array to this process's virtual memory.
 	 * This method handles address translation details. This method must

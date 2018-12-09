@@ -33,10 +33,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	/**
-	 * Initializes page tables for this process so that the executable can be
-	 * demand-paged.
-	 * 
-	 * @return <tt>true</tt> if successful.
+	 * Overwrite readVirtualMemory.
 	 */
 	@Override
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) 
