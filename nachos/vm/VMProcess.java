@@ -145,18 +145,11 @@ public class VMProcess extends UserProcess {
 	
 	protected boolean loadSections() {
 		UserKernel.FPP.acquire();
-		if (numPages > UserKernel.freePhysicalPage.size()) 
-		{
-			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory");
-			return false;
-		}
 		
 		pageTable = new TranslationEntry[numPages];
 		for (int i = 0; i < numPages; i++) 
 		{
-			int ppn = UserKernel.freePhysicalPage.remove(UserKernel.freePhysicalPage.size()-1);
-			pageTable[i] = new TranslationEntry(i, ppn, false, false, false, false);
+			pageTable[i] = new TranslationEntry(i, 0, false, false, false, false);
 		}
 		UserKernel.FPP.release();
 		return true;
@@ -203,12 +196,13 @@ public class VMProcess extends UserProcess {
 		else {
 			int ppn = UserKernel.freePhysicalPage.remove(UserKernel.freePhysicalPage.size()-1);
 			pageTable[vpn].ppn = ppn;
-			VMKernel.clockArray.add(pageTable[vpn]);
+			VMKernel.hand.add(pageTable[vpn]);
 		}
+		
+		pageTable[vpn].valid = true;
 		
 		VMKernel.page_replace_lock.release();
 		
-		pageTable[vpn].valid = true;
 		if(pageTable[vpn].dirty) {
 			byte[] buffer = new byte[pageSize];
 			VMKernel.swapFile.read(pageTable[vpn].vpn, buffer, 0, pageSize);
