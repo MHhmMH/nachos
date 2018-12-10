@@ -43,28 +43,38 @@ public class VMProcess extends UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 		int res = 0;
-		int vpn = vaddr / pageSize;
-		int off = vaddr % pageSize;
-		VMKernel.find_replace_lock.acquire();
-		pageTable[vpn].used = false;
-		VMKernel.find_replace_lock.release();
 		
-		while(length > 0) {
-			
+		while(length > 0) 
+		{
+			int vpn = vaddr / pageSize;
+			int off = vaddr % pageSize;
+			VMKernel.find_replace_lock.acquire();
+			pageTable[vpn].used = false;
+			VMKernel.find_replace_lock.release();
 			
 			//vpn not exist in pagetable
-			if(vpn < 0 || vpn > pageTable.length) {
+			if(vpn < 0 || vpn > pageTable.length) 
+			{
 				return 0;
 			}
-			if(vpn == pageTable.length) {
+			if(vpn == pageTable.length) 
+			{
 				break;
 			}
 			
-			int ppn = pageTable[vpn].ppn;
-			int paddr = ppn* pageSize+off;
+			if (!pageTable[vpn].valid)
+			{
+			   this.handlePageFault(vpn*pageSize);
+			}
 			
+			int ppn = pageTable[vpn].ppn;
+			int paddr = ppn* pageSize + off;
 			int amount = Math.min(length, pageSize - off);
 			System.arraycopy(memory, paddr, data, offset, amount);
+			
+			VMKernel.find_replace_lock.acquire();
+			pageTable[vpn].used = true;
+			VMKernel.find_replace_lock.release();
 			
 			res = res + amount;
 			length = length - amount;
@@ -76,15 +86,151 @@ public class VMProcess extends UserProcess {
 
 	}
 
+	/**
+	 * Overwrite writeVirtualMemory.
+	 */
+	@Override
+	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) 
+	{
+		Lib.assertTrue(offset >= 0 && length >= 0
+				&& offset + length <= data.length);
+
+		byte[] memory = Machine.processor().getMemory();
+		int res = 0;
+		
+		while(length > 0) 
+		{
+			int vpn = vaddr / pageSize;
+			int off = vaddr % pageSize;
+			VMKernel.find_replace_lock.acquire();
+			pageTable[vpn].used = false;
+			VMKernel.find_replace_lock.release();
+			
+			//vpn not exist in pagetable
+			if(vpn < 0 || vpn > pageTable.length) 
+			{
+				return 0;
+			}
+			if(vpn == pageTable.length) 
+			{
+				break;
+			}
+			
+			if(pageTable[vpn].readOnly) 
+			{
+				return 0;
+			}
+			if (!pageTable[vpn].valid)
+			{
+			   this.handlePageFault(vpn*pageSize);
+			}
+			int ppn = pageTable[vpn].ppn;
+			int paddr = ppn * pageSize + off;
+			
+			int amount = Math.min(length, pageSize - off);
+			System.arraycopy(data, offset, memory, paddr, amount);
+			
+			VMKernel.find_replace_lock.acquire();
+			pageTable[vpn].used = true;
+			VMKernel.find_replace_lock.release();
+			
+			res = res + amount;
+			length = length - amount;
+			vaddr = vaddr + amount;
+			offset = offset + amount;
+		}
+		
+		return res;
+	}
+	
 	protected boolean loadSections() {
-		return super.loadSections();
+		UserKernel.FPP.acquire();
+		if (numPages > UserKernel.freePhysicalPage.size()) 
+		{
+			coff.close();
+			Lib.debug(dbgProcess, "\tinsufficient physical memory");
+			return false;
+		}
+		
+		pageTable = new TranslationEntry[numPages];
+		for (int i = 0; i < numPages; i++) 
+		{
+			int ppn = UserKernel.freePhysicalPage.remove(UserKernel.freePhysicalPage.size()-1);
+			pageTable[i] = new TranslationEntry(i, ppn, false, false, false, false);
+		}
+		UserKernel.FPP.release();
+		return true;
 	}
 
 	/**
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-		super.unloadSections();
+		for (int i = 0; i < pageTable.length;i++) {
+			VMKernel.page_replace_lock.acquire();
+			// free all the valid page in memory
+			if (pageTable[i].valid)
+			{	
+				pageTable[i].valid = false;
+				// add this page to free page
+				VMKernel.freePhysicalPage.add(0,pageTable[i].ppn);
+				int remove_page_index = VMKernel.clockArray.indexOf(pageTable[i]);
+				VMKernel.hand = VMKernel.clockArray.listIterator(remove_page_index);
+				VMKernel.hand.next();
+				VMKernel.hand.remove();
+			}
+			else
+			{
+				if (pageTable[i].dirty)
+				{
+					// add dirty page to swap 
+					int can_swap = pageTable[i].vpn;
+					VMKernel.freeSwap.add(can_swap);
+				}
+			}
+			VMKernel.page_replace_lock.release();
+		}
+	}
+	
+	protected void handlePageFault(int vaddr) {
+		int vpn = vaddr/pageSize;
+		
+		VMKernel.page_replace_lock.acquire();
+		
+		if(UserKernel.freePhysicalPage.isEmpty()) {
+			VMKernel.PageReplacement(pageTable[vpn]);
+		}
+		else {
+			int ppn = UserKernel.freePhysicalPage.remove(UserKernel.freePhysicalPage.size()-1);
+			pageTable[vpn].ppn = ppn;
+			VMKernel.clockArray.add(pageTable[vpn]);
+		}
+		
+		VMKernel.page_replace_lock.release();
+		
+		pageTable[vpn].valid = true;
+		if(pageTable[vpn].dirty) {
+			byte[] buffer = new byte[pageSize];
+			VMKernel.swapFile.read(pageTable[vpn].vpn, buffer, 0, pageSize);
+			VMKernel.freeSwap.add(pageTable[vpn].vpn);
+			writeVirtualMemory(vpn*pageSize, buffer);
+		}
+		else {
+			if(vpn >= numPages-1-stackPages) {
+				byte[] zero = {0};
+				writeVirtualMemory(vpn*pageSize, zero);
+			} else {
+				for (int s = 0; s < coff.getNumSections(); s++) {
+					CoffSection section = coff.getSection(s);
+					if(vpn >= section.getFirstVPN() && vpn < section.getFirstVPN()+section.getLength()) {
+						pageTable[vpn].readOnly = section.isReadOnly();
+						section.loadPage(vpn-section.getFirstVPN(), pageTable[vpn].ppn);
+						break;
+					}
+				}
+			}
+		}
+		
 	}
 
 	/**
@@ -98,6 +244,9 @@ public class VMProcess extends UserProcess {
 		Processor processor = Machine.processor();
 
 		switch (cause) {
+		case Processor.exceptionPageFault:
+			this.handlePageFault(processor.readRegister(Processor.regBadVAddr));
+			break;
 		default:
 			super.handleException(cause);
 			break;

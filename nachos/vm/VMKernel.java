@@ -81,20 +81,20 @@ public class VMKernel extends UserKernel {
 		hand.set(Page_need_replace);
 		Page_need_replace.ppn = Page_to_replace.ppn;
 		// if we replace a dirty page we need to write it to swapfile on memory
-		if (Page_need_replace.dirty)
+		if (Page_to_replace.dirty)
 		{
 			byte[] Dirtypage = new byte[Processor.pageSize];
-			System.arraycopy(Machine.processor(),Page_need_replace.ppn * Processor.pageSize,Dirtypage,0 , Processor.pageSize);
+			System.arraycopy(Machine.processor(), Page_to_replace.ppn * Processor.pageSize, Dirtypage, 0, Processor.pageSize);
 			// this is for the case when swapfile is initailized
 			if (freeSwap.isEmpty())
 			{
-				Page_need_replace.vpn = swapFile.tell();
+				Page_to_replace.vpn = swapFile.tell();
 				swapFile.write(Dirtypage, 0,Dirtypage.length);
 			}
 			else
 			{
 				int spn = freeSwap.remove(0);
-				Page_need_replace.vpn = spn;
+				Page_to_replace.vpn = spn;
 				swapFile.write(spn,Dirtypage, 0,Dirtypage.length);
 			}
 		}
